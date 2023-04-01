@@ -21,18 +21,33 @@ namespace Practica01.Controllers
         /// </summary>
         /// <returns></returns>
         [HttpGet]
-        [Route("getAll")]
-        public IActionResult ObtenerEquipos()
+        [Route("GetAll")]
+        public ActionResult Get()
         {
-            List<equipos> listadoEquipo = (from db in _equiposContext.equipos
-                                           where db.estado == "A"
-                                           select db).ToList();
+            var listadoEquipos = (from equipo in _equiposContext.equipos
+                                  join estado in _equiposContext.estados_equipo on equipo.estado_equipo_id equals estado.id_estados_equipo
+                                  join tipoEquipo in _equiposContext.tipo_equipo on equipo.tipo_equipo_id equals tipoEquipo.id_tipo_equipo
+                                  join marca in _equiposContext.Marcas on equipo.marca_id equals marca.id_marcas
+                                  select new
+                                  {
+                                      equipo.nombre,
+                                      equipo.descripcion,
+                                      descripcionTipo = tipoEquipo.descripcion,
+                                      marca.nombre_marca,
+                                      equipo.modelo,
+                                      equipo.anio_compra,
+                                      equipo.costo,
+                                      equipo.vida_util,
+                                      estadoEquipo = estado.descripcion
+                                  }).ToList();
 
-            if (listadoEquipo.Count == 0) { return NotFound(); }
+            if (listadoEquipos.Count == 0)
+            {
+                return NotFound();
+            }
 
-            return Ok(listadoEquipo);
+            return Ok(listadoEquipos);
         }
-
         ///localhost:puerto/api/equipos/getbyID/21/
         /// <summary>
         /// Obtiene un registro correspondiente al id ingresado
@@ -40,19 +55,14 @@ namespace Practica01.Controllers
         /// <param name='id'></param>
         /// <returns></returns>
         [HttpGet]
-        [Route("getbyID/(id)")]
-        public IActionResult get(int id)
+        [Route("GetById")]
+        public ActionResult GetById(int id)
         {
-             equipos? unEquipo = (from e in _equiposContext.equipos
-                          where e.id_equipos == id && e.estado == "A"
-                                  select e).FirstOrDefault();
-            if (unEquipo==null)
-            {
-                return NotFound();
+            equipos? equipo = _equiposContext.equipos.Find(id);
 
-            }
-            return Ok(unEquipo);
+            if (equipo == null) return NotFound();
 
+            return Ok(equipo);
         }
 
         /// <summary>
@@ -61,25 +71,20 @@ namespace Practica01.Controllers
         /// <param name='id'></param>
         /// <returns></returns>
         [HttpGet]
-        [Route("find/(filtro)")]
-        public IActionResult buscar(string filtro)
+        [Route("Find")]
+        public ActionResult Find(string filtro)
         {
-            List<equipos> listadoEquipo = (from e in _equiposContext.equipos
-                                           where e.descripcion.Contains(filtro) && e.estado == "A"
-                                          //  || 
-                                           select e).ToList();
-            //if (listadoEquipo.Count() == 0)
-            //{
-            //    return NotFound();
+            List<equipos>? equiposList = _equiposContext.equipos
+                                       .Where((x => (x.nombre.Contains(filtro) || x.descripcion.Contains(filtro)) && x.estado == "A"))
+                                       .ToList();
 
-            //}
-            if (listadoEquipo.Any())
+            if (equiposList.Any())
             {
-             return Ok(listadoEquipo);
+                return Ok(equiposList);
 
             }
-            return NotFound();
 
+            return NotFound();
         }
         /// <summary>
         /// EndPoint encargado de Almacenar un nuevo registro 
@@ -88,23 +93,23 @@ namespace Practica01.Controllers
         /// <returns></returns>
         [HttpPost]
         [Route("Add")]
-        public IActionResult Crear([FromBody] equipos equipoNuevo)
+        public IActionResult crear([FromBody] equipos equipo)
         {
 
             try
             {
-                equipoNuevo.estado = "A";
-                _equiposContext.equipos.Add(equipoNuevo);
+                _equiposContext.equipos.Add(equipo);
                 _equiposContext.SaveChanges();
-                return Ok(equipoNuevo);
+
+                return Ok(equipo);
+
             }
             catch (Exception ex)
             {
                 return BadRequest(ex.Message);
-                throw;
             }
-        }
 
+        }
         /// <summary>
         /// EndPoint encargado de actualizar un registro 
         /// </summary>
@@ -112,21 +117,23 @@ namespace Practica01.Controllers
         /// <returns></returns>
         [HttpPut]
         [Route("actualizar(id)")]
-        public IActionResult update(int id,[FromBody] equipos equipoNuevo)
+        public IActionResult actualizar(int id, [FromBody] equipos equipo)
         {
-            equipos? equipoExiste = (from e in _equiposContext.equipos
-                                    where e.id_equipos ==id && e.estado=="A"
-                                    select e).FirstOrDefault();
+            equipos? equipoExistente = _equiposContext.equipos.Find(id);
 
-            if (equipoExiste == null)
+            if (equipoExistente == null)
             {
                 return NotFound();
             }
-            equipoExiste.nombre = equipoNuevo.nombre;
-            equipoExiste.descripcion = equipoNuevo.descripcion;
-            _equiposContext.Entry(equipoExiste).State = EntityState.Modified;
+
+            equipoExistente.nombre = equipo.nombre;
+            equipoExistente.descripcion = equipo.descripcion;
+
+            _equiposContext.Entry(equipoExistente).State = EntityState.Modified;
             _equiposContext.SaveChanges();
-            return Ok(equipoExiste);
+
+            return Ok(equipoExistente);
+
         }
 
         /// <summary>
@@ -136,22 +143,19 @@ namespace Practica01.Controllers
         /// <returns></returns>
         [HttpDelete]
         [Route("delete(id)")]
-        public IActionResult eliminar (int id)
+        public IActionResult eliminarEquipo(int id)
         {
-            equipos? equipoExiste = (from e in _equiposContext.equipos
-                                     where e.id_equipos == id && e.estado == "A"
-                                     select e).FirstOrDefault();
-            if (equipoExiste == null)
-            {
-                return NotFound();
-            }
-            equipoExiste.estado = "I";
-            //actualizar el estado del registro por integridad de datos
+            equipos? equipoExiste = _equiposContext.equipos.Find(id);
+
+            if (equipoExiste == null) return NotFound();
+
+            equipoExiste.estado = "C";
+
             _equiposContext.Entry(equipoExiste).State = EntityState.Modified;
-            //_equiposContext.equipos.Attach(equipoExiste);
-            //_equiposContext.equipos.Remove(equipoExiste);
             _equiposContext.SaveChanges();
-            return Ok();
+
+            return Ok(equipoExiste);
+
         }
     }
 }
